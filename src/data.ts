@@ -2,6 +2,7 @@ import { TracePoint } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { ALL_CHARACTERS } from './character/index';
 import crypto from 'crypto';
+import { t, Lang } from './i18n';
 
 interface ChallengeData {
   correctIndexes: number[];
@@ -25,7 +26,7 @@ function shuffleArray<T>(array: T[]): T[] {
   return newArr;
 }
 
-export function createChallenge() {
+export function createChallenge(lang: string = 'zh') {
   const challengeId = uuidv4();
 
   // 验证模式
@@ -37,7 +38,7 @@ export function createChallenge() {
 
   if (mode === 'CHARACTER') {
     const targetChar = ALL_CHARACTERS[getRandomInt(0, ALL_CHARACTERS.length)];
-    targetName = targetChar.name;
+    targetName = t(targetChar.id, lang);
 
     const maxCorrect = Math.min(targetChar.images.length, 5);
     const minCorrect = Math.min(3, maxCorrect);
@@ -53,7 +54,7 @@ export function createChallenge() {
   } else {
     const allBands = Array.from(new Set(ALL_CHARACTERS.map(c => c.band)));
     const targetBand = allBands[getRandomInt(0, allBands.length)];
-    targetName = `${targetBand} 的角色`;
+    targetName = t('band_characters', lang, { band: targetBand });
 
     const bandChars = ALL_CHARACTERS.filter(c => c.band === targetBand);
     const bandImagesPool = bandChars.flatMap(c => c.images);
@@ -115,13 +116,14 @@ export function verifyChallenge(
   id: string,
   selectedIndexes: number[],
   traceData?: TracePoint[],
-  startTime?: number // Kept for backward compatibility but ignored for security
+  startTime?: number, // Kept for backward compatibility but ignored for security
+  lang: string = 'zh'
 ): { isValid: boolean; reason?: string; duration?: number } {
 
   const challengeData = challengeStore.get(id);
 
   if (!challengeData) {
-    return { isValid: false, reason: 'Challenge expired' };
+    return { isValid: false, reason: t('verify_expired', lang) };
   }
 
   const { correctIndexes, createdAt, imageTokens } = challengeData;
@@ -131,17 +133,17 @@ export function verifyChallenge(
 
   if (duration < 500) {
     cleanupChallenge(id);
-    return { isValid: false, reason: 'Too fast', duration };
+    return { isValid: false, reason: t('verify_too_fast', lang), duration };
   }
   if (duration > 60 * 1000) {
     cleanupChallenge(id);
-    return { isValid: false, reason: 'Timeout', duration };
+    return { isValid: false, reason: t('verify_timeout', lang), duration };
   }
 
   // Basic trace data validation
   if (!traceData || !Array.isArray(traceData) || traceData.length < 5) {
     cleanupChallenge(id);
-    return { isValid: false, reason: 'Invalid trace data', duration };
+    return { isValid: false, reason: t('verify_invalid_trace', lang), duration };
   }
 
   // Validate that not all trace points are identical (bot prevention)
@@ -157,13 +159,13 @@ export function verifyChallenge(
   
   if (!hasMovement) {
     cleanupChallenge(id);
-    return { isValid: false, reason: 'Suspicious trace data', duration };
+    return { isValid: false, reason: t('verify_suspicious_trace', lang), duration };
   }
 
   // Validate selected indexes array
   if (!Array.isArray(selectedIndexes)) {
     cleanupChallenge(id);
-    return { isValid: false, reason: 'Invalid format', duration };
+    return { isValid: false, reason: t('verify_invalid_format', lang), duration };
   }
 
   // Remove duplicates and sort
@@ -171,7 +173,7 @@ export function verifyChallenge(
 
   if (uniqueSelected.length !== correctIndexes.length) {
     cleanupChallenge(id);
-    return { isValid: false, reason: 'Incorrect count', duration };
+    return { isValid: false, reason: t('verify_incorrect_count', lang), duration };
   }
 
   const sortedSelected = [...uniqueSelected].sort((a, b) => a - b);
@@ -180,7 +182,7 @@ export function verifyChallenge(
   for (let i = 0; i < sortedSelected.length; i++) {
     if (sortedSelected[i] !== sortedCorrect[i] || sortedSelected[i] < 0 || sortedSelected[i] > 8) {
       cleanupChallenge(id);
-      return { isValid: false, reason: 'Incorrect selection', duration };
+      return { isValid: false, reason: t('verify_incorrect_selection', lang), duration };
     }
   }
 

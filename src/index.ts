@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import sharp from 'sharp';
 import { createChallenge, verifyChallenge, imageTokenStore } from './data';
 import { CaptchaVerifyRequest } from './types';
+import { t } from './i18n';
 
 const app = express();
 const port = 3001;
@@ -16,7 +17,10 @@ const limiter = rateLimit({
   max: 100, // limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many requests, please try again later." }
+  handler: (req, res) => {
+    const lang = (req.query.lang as string) || 'zh';
+    res.status(429).json({ error: t('too_many_requests', lang) });
+  }
 });
 
 const verifyLimiter = rateLimit({
@@ -24,14 +28,14 @@ const verifyLimiter = rateLimit({
   max: 15, // allow slightly more attempts to account for user mistakes
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: "Too many verification attempts, please wait." }
+  handler: (req, res) => {
+    const lang = (req.query.lang as string) || 'zh';
+    res.status(429).json({ success: false, message: t('too_many_attempts', lang) });
+  }
 });
 
-// Configure CORS for production safety
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-production-domain.com'] 
-    : '*',
+  origin: '*',
   methods: ['GET', 'POST'],
   credentials: true
 }));
@@ -39,7 +43,8 @@ app.use(express.json({ limit: '100kb' })); // Limit JSON body size to prevent pa
 
 app.get('/api/captcha', limiter, (req, res) => {
   try {
-    const challenge = createChallenge();
+    const lang = (req.query.lang as string) || 'zh';
+    const challenge = createChallenge(lang);
     const challengeWithFullUrl = {
       ...challenge,
       images: challenge.images.map(path => `http://localhost:${port}${path}`)
@@ -88,9 +93,10 @@ app.get('/api/img/:token', async (req, res) => {
 
 app.post('/api/verify', verifyLimiter, (req, res) => {
   try {
+    const lang = (req.query.lang as string) || 'zh';
     const body = req.body as CaptchaVerifyRequest;
     if (!body || !body.id || !Array.isArray(body.selectedIndexes)) {
-      res.status(400).json({ success: false, message: "Invalid request" });
+      res.status(400).json({ success: false, message: t('verify_invalid_format', lang) });
       return;
     }
 
@@ -98,19 +104,20 @@ app.post('/api/verify', verifyLimiter, (req, res) => {
       body.id,
       body.selectedIndexes,
       body.traceData,
-      body.startTime
+      body.startTime,
+      lang
     );
 
     if (result.isValid) {
       res.json({
         success: true,
-        message: "阿里嘎多~验证通过!",
+        message: t('verify_success', lang),
         duration: result.duration
       });
     } else {
       res.json({
         success: false,
-        message: result.reason || "验证失败",
+        message: result.reason || t('verify_failed', lang),
         duration: result.duration
       });
     }

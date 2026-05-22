@@ -17,9 +17,10 @@ interface TracePoint {
 }
 
 export const BangCaptcha: React.FC<{
+  lang?: 'zh' | 'en' | 'jp';
   onSuccess?: (token: string) => void;
   onFail?: (msg: string) => void;
-}> = ({ onSuccess, onFail }) => {
+}> = ({ lang = 'zh', onSuccess, onFail }) => {
   const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,14 +38,14 @@ export const BangCaptcha: React.FC<{
       setSelectedIndexes([]);
       traceData.current = [];
       
-      const response = await fetch(`${API_BASE}/captcha`);
+      const response = await fetch(`${API_BASE}/captcha?lang=${lang}`);
       if (!response.ok) throw new Error('Failed to fetch captcha');
       
       const data = await response.json();
       setChallenge(data);
     } catch (error) {
       console.error(error);
-      setErrorMsg('验证码加载失败，请重试');
+      setErrorMsg(lang === 'zh' ? '验证码加载失败，请重试' : lang === 'en' ? 'Failed to load captcha, please try again' : '読み込みに失敗しました。再試行してください');
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ export const BangCaptcha: React.FC<{
       // Format trace data to match backend [timestamp, x, y] format
       const formattedTrace = traceData.current.map(p => [p.t, p.x, p.y]);
       
-      const response = await fetch(`${API_BASE}/verify`, {
+      const response = await fetch(`${API_BASE}/verify?lang=${lang}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -100,29 +101,29 @@ export const BangCaptcha: React.FC<{
         // Typically you'd pass some token back
         onSuccess?.('verification_passed_token_here');
       } else {
-        setErrorMsg(result.message || '验证失败');
+        setErrorMsg(result.message || (lang === 'zh' ? '验证失败' : lang === 'en' ? 'Verification failed' : '認証失敗'));
         onFail?.(result.message);
         // Refresh captcha on fail
         setTimeout(fetchCaptcha, 1000);
       }
     } catch (error) {
       console.error(error);
-      setErrorMsg('网络请求失败');
+      setErrorMsg(lang === 'zh' ? '网络请求失败' : lang === 'en' ? 'Network error' : 'ネットワークエラー');
     } finally {
       setVerifying(false);
     }
   };
 
   if (loading && !challenge) {
-    return <div style={styles.container}>加载中...</div>;
+    return <div style={styles.container}>{lang === 'zh' ? '加载中...' : lang === 'en' ? 'Loading...' : '読み込み中...'}</div>;
   }
 
   return (
     <div style={styles.container} ref={captchaRef} onMouseMove={handleMouseMove}>
       <div style={styles.header}>
-        <div style={styles.title}>请选出所有包含</div>
+        <div style={styles.title}>{lang === 'zh' ? '请选出所有包含' : lang === 'en' ? 'Please select all images containing' : '以下を含むすべての画像を選択してください'}</div>
         <div style={styles.target}>{challenge?.targetName}</div>
-        <div style={styles.subtitle}>的图片</div>
+        <div style={styles.subtitle}>{lang === 'zh' ? '的图片' : lang === 'en' ? '' : ''}</div>
       </div>
       
       {errorMsg && <div style={styles.error}>{errorMsg}</div>}
@@ -163,7 +164,7 @@ export const BangCaptcha: React.FC<{
           onClick={fetchCaptcha} 
           disabled={loading || verifying}
         >
-          刷新
+          {lang === 'zh' ? '刷新' : lang === 'en' ? 'Refresh' : '更新'}
         </button>
         <button 
           style={{
@@ -173,7 +174,9 @@ export const BangCaptcha: React.FC<{
           onClick={handleVerify}
           disabled={selectedIndexes.length === 0 || verifying}
         >
-          {verifying ? '验证中...' : '确认'}
+          {verifying 
+            ? (lang === 'zh' ? '验证中...' : lang === 'en' ? 'Verifying...' : '認証中...') 
+            : (lang === 'zh' ? '确认' : lang === 'en' ? 'Verify' : '確認')}
         </button>
       </div>
     </div>
