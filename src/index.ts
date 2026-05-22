@@ -8,22 +8,34 @@ import { CaptchaVerifyRequest } from './types';
 const app = express();
 const port = 3001;
 
+// Trust proxy if you are behind a reverse proxy (e.g. Nginx, Vercel)
+app.set('trust proxy', 1);
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many requests" }
+  message: { error: "Too many requests, please try again later." }
 });
 
 const verifyLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 10,
-  message: { success: false, message: "Too many attempts" }
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 15, // allow slightly more attempts to account for user mistakes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many verification attempts, please wait." }
 });
 
-app.use(cors());
-app.use(express.json());
+// Configure CORS for production safety
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://your-production-domain.com'] 
+    : '*',
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
+app.use(express.json({ limit: '100kb' })); // Limit JSON body size to prevent payload attacks
 
 app.get('/api/captcha', limiter, (req, res) => {
   try {
