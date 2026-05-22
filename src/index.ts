@@ -77,7 +77,7 @@ app.get('/api/img/:token', async (req, res) => {
 app.post('/api/verify', verifyLimiter, (req, res) => {
   try {
     const body = req.body as CaptchaVerifyRequest;
-    if (!body.id || !body.selectedIndexes) {
+    if (!body || !body.id || !Array.isArray(body.selectedIndexes)) {
       res.status(400).json({ success: false, message: "Invalid request" });
       return;
     }
